@@ -1,11 +1,10 @@
 from fastapi import FastAPI
 from models import Product
-
+from database import session, engine
+import database_model
 app = FastAPI()
 
-@app.get("/")
-def greet():
-    return "Welcome to my Server"
+database_model.Base.metadata.create_all(bind=engine)
 
 products = [
     Product(id=1, name="phone", desc="budget phone", price=99, quantity=10),
@@ -29,6 +28,19 @@ products = [
     Product(id=19, name="adapter", desc="universal travel adapter", price=24, quantity=28),
     Product(id=20, name="dock", desc="multi-port USB dock", price=89, quantity=13)
 ]
+
+# Populate database with initial products if empty
+db = session()
+if db.query(database_model.Product).count() == 0:
+    for prod in products:
+        db_product = database_model.Product(id=prod.id, name=prod.name, desc=prod.desc, price=prod.price, quantity=prod.quantity)
+        db.add(db_product)
+    db.commit()
+db.close()
+
+@app.get("/")
+def greet():
+    return "Welcome to my Server"
 
 ic = []
 for i in range(len(products)):
@@ -55,15 +67,57 @@ def hehe():
 
 @app.get("/products")
 def get_all_products():
-    return products
+    db = session()
+    db_products = db.query(database_model.Product).all()
+    db.close()
+    return db_products
+# @app.get("/products")
+# def get_all_products():
+#     return products
 
 @app.get("/product/{id}")
 def get_prod_by_id(id:int):
-    if binary(ic,id):
-        return products[id-1]
-    return "Not found"
+    db = session()
+    product = db.query(database_model.Product).filter(database_model.Product.id == id).first()
+    db.close()
+    if product:
+        return product
+    return {"message": "Product not found"}
 
 @app.post("/product")
 def add_product(product: Product):
-    products.append(product)
-    return {"message": "Product added successfully", "product": product}
+    db = session()
+    db_product = database_model.Product(id=product.id, name=product.name, desc=product.desc, price=product.price, quantity=product.quantity)
+    db.add(db_product)
+    db.commit()
+    db.refresh(db_product)
+    db.close()
+    return {"message": "Product added successfully", "product": db_product}
+
+@app.put("/product/{id}")
+def update_product(id: int, product: Product):
+    db = session()
+    db_product = db.query(database_model.Product).filter(database_model.Product.id == id).first()
+    if db_product:
+        db_product.name = product.name
+        db_product.desc = product.desc
+        db_product.price = product.price
+        db_product.quantity = product.quantity
+        db.commit()
+        db.refresh(db_product)
+        db.close()
+        return {"message": "Product updated successfully", "product": db_product}
+    db.close()
+    return {"message": "Product not found"}
+
+@app.delete("/product/{id}")
+def delete_product(id: int):
+    db = session()
+    db_product = db.query(database_model.Product).filter(database_model.Product.id == id).first()
+    if db_product:
+        db.delete(db_product)
+        db.commit()
+        db.close()
+        return {"message": "Product deleted successfully"}
+    db.close()
+    return {"message": "Product not found"}
