@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-test
 db_url = os.getenv("POSTGRES")
 engine = create_engine(db_url)
 session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
